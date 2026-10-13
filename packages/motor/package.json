@@ -1,0 +1,15 @@
+{
+  "name": "@chekdor/motor",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Motor de cálculo fiscal puro determinista LFT y CONTPAQi sin dependencias",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit --noEmitOnError",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

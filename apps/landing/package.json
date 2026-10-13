@@ -1,0 +1,17 @@
+{
+  "name": "@chekdor/landing",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Landing page estática SSG de Chekdor para despachos contables",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "typecheck": "tsc --noEmit --noEmitOnError"
+  },
+  "dependencies": {
+    "@chekdor/motor": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

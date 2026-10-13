@@ -1,0 +1,17 @@
+{
+  "name": "@chekdor/serializadores",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Serializadores contables para CONTPAQi, Aspel NOI y CSV 20/20 SAT",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit --noEmitOnError"
+  },
+  "dependencies": {
+    "@chekdor/motor": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

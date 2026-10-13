@@ -1,0 +1,6 @@
+{
+  "name": "Chekdor v2.0 — Adaptador Fiscal LFT & Pólizas CONTPAQi",
+  "description": "Sistema de registro electrónico de jornada LFT art 132 fr XXXIV y generación determinista de póliza contable que cuadra e importa en CONTPAQi para despachos contables.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
