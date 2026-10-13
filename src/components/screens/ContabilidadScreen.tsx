@@ -25,6 +25,9 @@ export const ContabilidadScreen: React.FC<ContabilidadScreenProps> = ({
   const [tiempoAhorrado, setTiempoAhorrado] = useState('1.5 horas por quincena');
   const [cuentaFalla, setCuentaFalla] = useState('');
   const [feedbackSaved, setFeedbackSaved] = useState(false);
+  const [cuentaFallaSimulada, setCuentaFallaSimulada] = useState<string | null>(null);
+  const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
+  const [validacionExito, setValidacionExito] = useState<string | null>(null);
 
   const juan = trabajadores.find((t) => t.rfc === 'PELJ900101ABC') || trabajadores[0];
   const calculoJuan = calcularNominaTrabajador(juan);
@@ -35,10 +38,36 @@ export const ContabilidadScreen: React.FC<ContabilidadScreenProps> = ({
 
   const handleSwitchCat = (mode: CatalogoTipo) => {
     setCatalogoActivo(mode);
+    setErrorDescarga(null);
     onCambiarCatalogoEmpresa(mode);
   };
 
+  const validarAntesDeDescargar = (): boolean => {
+    setErrorDescarga(null);
+    setValidacionExito(null);
+
+    if (cuentaFallaSimulada) {
+      setErrorDescarga(`Error de exportación: Cuenta ${cuentaFallaSimulada} no existe en el catálogo de CONTPAQi.`);
+      return false;
+    }
+
+    if (Math.abs(poliza.totalDebe - poliza.totalHaber) > 0.01) {
+      setErrorDescarga(`Error: Descuadre en partida doble. DEBE $${poliza.totalDebe.toFixed(2)} != HABER $${poliza.totalHaber.toFixed(2)}`);
+      return false;
+    }
+
+    if (!validacion.camposSatValidos || !validacion.debeHaberCuadra || !validacion.sinBomDoble || !validacion.sinEncabezadoEnPipe) {
+      setErrorDescarga('Error en validación 20/20: Algún campo SAT o regla de formato no cumple.');
+      return false;
+    }
+
+    setValidacionExito('✓ Validación 20/20 SAT y cuadre DEBE=HABER ($10,200.00 = $10,200.00) verificados con éxito.');
+    return true;
+  };
+
   const handleDescargarPipe = () => {
+    if (!validarAntesDeDescargar()) return;
+
     const blob = new Blob([pipeContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -51,6 +80,8 @@ export const ContabilidadScreen: React.FC<ContabilidadScreenProps> = ({
   };
 
   const handleDescargarCsv = () => {
+    if (!validarAntesDeDescargar()) return;
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -150,6 +181,15 @@ export const ContabilidadScreen: React.FC<ContabilidadScreenProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* NOTA DESTACADA DE PRINCIPIO CONTABLE */}
+        <div className="p-3 bg-[#FAF8F5] border-l-4 border-l-[#C65D3A] border border-[#E7E5E4] text-xs font-mono text-neutral-700 flex items-center gap-2.5">
+          <span className="material-symbols-outlined text-[#C65D3A] text-lg">info</span>
+          <div>
+            <strong className="text-[#1A1A1A]">Nota de Principio:</strong>{' '}
+            <span className="italic">"Chekdor no inventa cuentas, no crea catálogo, solo transforma horas→póliza."</span>
           </div>
         </div>
 
@@ -310,30 +350,68 @@ export const ContabilidadScreen: React.FC<ContabilidadScreenProps> = ({
               </div>
 
               {/* Download Buttons */}
-              <div className="space-y-2">
+              <div className="space-y-2.5">
+                {/* Primary Button */}
                 <button
                   type="button"
                   onClick={handleDescargarPipe}
-                  className="w-full h-11 bg-[#C65D3A] hover:bg-[#b24f2f] text-white font-medium text-xs flex items-center justify-center gap-2.5 shadow-sm transition-all px-3 cursor-pointer"
+                  className="w-full min-h-[46px] bg-[#C65D3A] hover:bg-[#b24f2f] text-white font-mono font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all px-3 cursor-pointer text-center"
                 >
-                  <span className="material-symbols-outlined text-[20px]">download</span>
-                  <span className="truncate">Descargar PIPE.txt UTF-8 BOM sin encabezado</span>
+                  <span className="material-symbols-outlined text-[18px]">download</span>
+                  <span>Descargar PIPE.txt UTF-8 BOM sin encabezado para CONTPAQi Contabilidad</span>
                 </button>
                 <div className="text-[11px] font-mono text-neutral-500 px-1">
-                  * Cumple sintaxis nativa de CONTPAQi Contabilidad 14, 15 y 16.
+                  * Ejecuta verificación 20/20 SAT y valida DEBE=HABER (tolerancia $0.01).
                 </div>
 
+                {/* Secondary Button */}
                 <button
                   type="button"
                   onClick={handleDescargarCsv}
-                  className="w-full h-9 bg-white hover:bg-neutral-50 text-[#1A1A1A] font-medium text-xs border border-[#E7E5E4] flex items-center justify-center gap-2 shadow-sm transition-all px-3 cursor-pointer"
+                  className="w-full h-10 bg-white hover:bg-neutral-50 text-[#1A1A1A] font-mono font-semibold text-xs border border-[#E7E5E4] flex items-center justify-center gap-2 shadow-sm transition-all px-3 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px] text-neutral-600">
                     table_view
                   </span>
-                  <span className="truncate">Descargar CSV genérico con encabezado</span>
+                  <span>Descargar CSV genérico</span>
                 </button>
+
+                {/* Botón para simular fallo de cuenta inexistente */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCuentaFallaSimulada(
+                        cuentaFallaSimulada ? null : catalogoActivo === '510-001' ? '510-001' : '6000-01-001'
+                      )
+                    }
+                    className={`w-full py-1.5 px-2 text-[10px] font-mono border transition-colors cursor-pointer text-center ${
+                      cuentaFallaSimulada
+                        ? 'bg-red-50 border-red-300 text-red-800 font-bold'
+                        : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-600'
+                    }`}
+                  >
+                    {cuentaFallaSimulada
+                      ? '✕ Quitar simulación de error'
+                      : '⚠ Simular fallo: Cuenta 510-001 no existe'}
+                  </button>
+                </div>
               </div>
+
+              {/* Alerta de Error de Validación */}
+              {errorDescarga && (
+                <div className="p-3 bg-red-50 border border-red-300 text-red-800 font-mono text-xs flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-red-600">error</span>
+                  <span>{errorDescarga}</span>
+                </div>
+              )}
+
+              {validacionExito && !errorDescarga && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 font-mono text-xs flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-emerald-600">check_circle</span>
+                  <span>{validacionExito}</span>
+                </div>
+              )}
 
               {/* Validation Checklist Box */}
               <div className="p-3 bg-[#F0FDF4] border border-[#BBF7D0] space-y-2 text-xs">

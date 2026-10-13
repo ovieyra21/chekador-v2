@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@chekdor/motor": "workspace:*",
-    "@chekdor/serializadores": "workspace:*"
+    "@chekdor/serializadores": "workspace:*",
+    "@supabase/supabase-js": "^2.48.1",
+    "@supabase/ssr": "^0.5.2"
   },
   "devDependencies": {
     "typescript": "^5.8.0"

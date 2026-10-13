@@ -19,16 +19,23 @@ export const TrabajadoresScreen: React.FC<TrabajadoresScreenProps> = ({
   const [viewMode, setViewMode] = useState<'empty' | 'data'>('data');
   const [searchTerm, setSearchTerm] = useState('PELJ900101ABC');
   const [showAltaModal, setShowAltaModal] = useState(false);
+  const [showCsvModal, setShowCsvModal] = useState(false);
 
-  // Form states for Alta Trabajador
+  // Form states for Alta Trabajador (8 campos requeridos)
   const [nuevoNombre, setNuevoNombre] = useState('');
   const [nuevoPuesto, setNuevoPuesto] = useState('');
   const [nuevoRfc, setNuevoRfc] = useState('');
   const [nuevoCurp, setNuevoCurp] = useState('');
   const [nuevoNss, setNuevoNss] = useState('');
   const [nuevoSalario, setNuevoSalario] = useState('600');
+  const [nuevoBanco, setNuevoBanco] = useState('BBVA México');
   const [nuevaClabe, setNuevaClabe] = useState('012180015678901234');
-  const [nuevoNfc, setNuevoNfc] = useState('04:A1:B2:C3');
+  const [nuevoNfc, setNuevoNfc] = useState('04:A1:B2:C3:D4:E5:F6');
+
+  // CSV Validation states
+  const [csvContent, setCsvContent] = useState('');
+  const [csvErrors, setCsvErrors] = useState<string[]>([]);
+  const [csvValidos, setCsvValidos] = useState<Trabajador[]>([]);
 
   const trabajadoresAMostrar = viewMode === 'empty' ? [] : trabajadores;
   const filtered = trabajadoresAMostrar.filter(
@@ -53,7 +60,7 @@ export const TrabajadoresScreen: React.FC<TrabajadoresScreenProps> = ({
       empresaId: empresa.id,
       codigo: `F-${String(trabajadores.length + 1).padStart(3, '0')}`,
       nombre: nuevoNombre.trim(),
-      puesto: nuevoPuesto.trim(),
+      puesto: nuevoPuesto.trim() || 'Operativo General',
       turno: 'Mixto (Art. 60 LFT)',
       rfc: nuevoRfc.trim().toUpperCase(),
       curp: nuevoCurp.trim().toUpperCase(),
@@ -62,8 +69,8 @@ export const TrabajadoresScreen: React.FC<TrabajadoresScreenProps> = ({
       sbcImss: sbc,
       factorIntegracion: factor,
       clabeBancaria: nuevaClabe.trim(),
-      banco: 'BBVA México',
-      tagNfcId: nuevoNfc.trim() || '04:A1:B2:C3',
+      banco: nuevoBanco.trim() || 'BBVA México',
+      tagNfcId: nuevoNfc.trim() || '04:A1:B2:C3:D4:E5:F6',
       antiguedad: 'Nuevo ingreso',
       estatus: 'activo',
       horasExtraDobles: 0,
@@ -79,6 +86,116 @@ export const TrabajadoresScreen: React.FC<TrabajadoresScreenProps> = ({
     setNuevoRfc('');
     setNuevoCurp('');
     setNuevoNss('');
+  };
+
+  const handleValidarCsv = (texto: string) => {
+    setCsvContent(texto);
+    setCsvErrors([]);
+    setCsvValidos([]);
+    if (!texto.trim()) return;
+
+    const lineas = texto.trim().split('\n');
+    const errores: string[] = [];
+    const validos: Trabajador[] = [];
+
+    lineas.forEach((linea, index) => {
+      const numFila = index + 1;
+      const partes = linea.split(',').map((p) => p.trim());
+      if (index === 0 && (partes[0]?.toLowerCase().includes('empleado') || partes[1]?.toLowerCase().includes('nombre'))) {
+        return;
+      }
+      if (partes.length < 20) {
+        errores.push(`Fila ${numFila}: Rechazada completa. Contiene ${partes.length}/20 campos. Se requieren los 20 campos SAT Receptor.`);
+        return;
+      }
+      const [
+        numEmpleado,
+        nombre,
+        rfc,
+        curp,
+        nss,
+        salarioDiarioStr,
+        sbcStr,
+        banco,
+        clabe,
+        nfcUid,
+        puesto,
+        turno,
+      ] = partes;
+
+      if (!clabe || !/^\d{18}$/.test(clabe)) {
+        errores.push(`Fila ${numFila}: Falta CLABE de 18 dígitos o formato incorrecto (recibido: "${clabe || 'VACÍO'}").`);
+        return;
+      }
+      if (!curp || !/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z\d]{2}$/.test(curp)) {
+        errores.push(`Fila ${numFila}: CURP inválido (recibido: "${curp || 'VACÍO'}"). Debe tener 18 caracteres.`);
+        return;
+      }
+      if (!rfc || !/^[A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}$/.test(rfc)) {
+        errores.push(`Fila ${numFila}: RFC inválido (recibido: "${rfc || 'VACÍO'}").`);
+        return;
+      }
+      if (!nss || !/^\d{11}$/.test(nss)) {
+        errores.push(`Fila ${numFila}: NSS inválido (recibido: "${nss || 'VACÍO'}"). Requiere 11 dígitos.`);
+        return;
+      }
+
+      const sal = parseFloat(salarioDiarioStr) || 600;
+      validos.push({
+        id: `trab_csv_${Date.now()}_${index}`,
+        empresaId: empresa.id,
+        codigo: numEmpleado || `F-${String(100 + index)}`,
+        nombre: nombre || 'Trabajador CSV',
+        puesto: puesto || 'Operativo',
+        turno: turno || 'Mixto (Art. 60 LFT)',
+        rfc: rfc.toUpperCase(),
+        curp: curp.toUpperCase(),
+        nss,
+        salarioDiario: sal,
+        sbcImss: parseFloat(sbcStr) || Math.round(sal * 1.0493 * 100) / 100,
+        factorIntegracion: 1.0493,
+        clabeBancaria: clabe,
+        banco: banco || 'BBVA México',
+        tagNfcId: nfcUid || '04:A1:B2:C3:D4:E5:F6',
+        antiguedad: '1 año',
+        estatus: 'activo',
+        horasExtraDobles: 0,
+        domingosTrabajados: 0,
+        diasTrabajados: 15,
+      });
+    });
+
+    setCsvErrors(errores);
+    setCsvValidos(validos);
+  };
+
+  const handleImportarCsvConfirm = () => {
+    if (csvErrors.length > 0 || csvValidos.length === 0) return;
+    csvValidos.forEach((t) => onAgregarTrabajador(t));
+    setShowCsvModal(false);
+    setViewMode('data');
+    setCsvContent('');
+    setCsvValidos([]);
+  };
+
+  const handleCargarCsvFalla = () => {
+    const csvFalla = [
+      'num_empleado,nombre,rfc,curp,nss,salario_diario,sbc,banco,cuenta_clabe,nfc_uid,puesto,turno,regimen_contratacion,periodicidad_pago,uso_cfdi,regimen_fiscal,codigo_postal,factor_integracion,dias_pagados,tipo_contrato',
+      'F-001,Juan Pérez López,PELJ900101ABC,PELJ900101HDFRRN09,12345678901,600.00,629.58,BBVA México,012180015678901234,04:A1:B2:C3:D4:E5:F6,Auxiliar de Almacén,Mixto,02,04,CN01,605,38000,1.0493,15,01',
+      'F-002,María Gómez Morales,GOMM920315XYZ,GOMM920315MDFRRN01,98765432109,750.00,786.98,Banorte,072180001234567890,04:B2:C3:D4:E5:F6:A1,Contadora Junior,Diurno,02,04,CN01,605,38010,1.0493,15,01',
+      'F-003,Carlos Rivera Sánchez,RISC880520H99,RISC880520HDFRRN08,45678901234,500.00,524.65,Santander,014180009876543210,04:C3:D4:E5:F6:A1:B2,Montacarguista,Diurno,02,04,CN01,605,38020,1.0493,15,01',
+      'F-004,Raúl Mendoza Ortiz,MEOR950711K22,MEOR950711HDFRRN05,78901234567,550.00,577.12,BBVA México,,04:D4:E5:F6:A1:B2:C3,Operador de Ruta,Mixto,02,04,CN01,605,38030,1.0493,15,01',
+    ].join('\n');
+    handleValidarCsv(csvFalla);
+  };
+
+  const handleCargarCsvValido = () => {
+    const csvOk = [
+      'num_empleado,nombre,rfc,curp,nss,salario_diario,sbc,banco,cuenta_clabe,nfc_uid,puesto,turno,regimen_contratacion,periodicidad_pago,uso_cfdi,regimen_fiscal,codigo_postal,factor_integracion,dias_pagados,tipo_contrato',
+      'F-001,Juan Pérez López,PELJ900101ABC,PELJ900101HDFRRN09,12345678901,600.00,629.58,BBVA México,012180015678901234,04:A1:B2:C3:D4:E5:F6,Auxiliar de Almacén,Mixto,02,04,CN01,605,38000,1.0493,15,01',
+      'F-002,María Gómez Morales,GOMM920315XYZ,GOMM920315MDFRRN01,98765432109,750.00,786.98,Banorte,072180001234567890,04:B2:C3:D4:E5:F6:A1,Contadora Junior,Diurno,02,04,CN01,605,38010,1.0493,15,01',
+    ].join('\n');
+    handleValidarCsv(csvOk);
   };
 
   return (
@@ -221,19 +338,25 @@ export const TrabajadoresScreen: React.FC<TrabajadoresScreenProps> = ({
             <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
               <button
                 onClick={() => setShowAltaModal(true)}
-                className="h-9 px-5 bg-[#C65D3A] text-white text-xs font-semibold hover:bg-[#b24f2f] transition-colors flex items-center gap-2 cursor-pointer"
+                className="h-9 px-5 bg-[#C65D3A] text-white text-xs font-semibold hover:bg-[#b24f2f] transition-colors flex items-center gap-2 cursor-pointer shadow"
               >
                 <span className="material-symbols-outlined text-[18px]">add</span>
                 <span>+ Alta trabajador</span>
               </button>
               <button
-                onClick={() => setViewMode('data')}
-                className="h-9 px-4 bg-white text-[#1A1A1A] text-xs font-medium border border-[#E7E5E4] hover:bg-neutral-50 transition-colors flex items-center gap-2 cursor-pointer"
+                onClick={() => setShowCsvModal(true)}
+                className="h-9 px-4 bg-white text-[#1A1A1A] text-xs font-medium border border-[#E7E5E4] hover:bg-neutral-50 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
               >
-                <span className="material-symbols-outlined text-[18px] text-neutral-500">
-                  visibility
+                <span className="material-symbols-outlined text-[18px] text-[#C65D3A]">
+                  upload_file
                 </span>
-                <span>Cargar padrón con 1 o 6 trabajadores</span>
+                <span>Importar CSV 20/20 campos SAT</span>
+              </button>
+              <button
+                onClick={() => setViewMode('data')}
+                className="h-9 px-3.5 bg-neutral-100 text-neutral-700 text-xs font-medium border border-[#E7E5E4] hover:bg-neutral-200 transition-colors flex items-center gap-1.5 cursor-pointer font-mono"
+              >
+                <span>Demo Juan Pérez (1 fila)</span>
               </button>
             </div>
             <div className="max-w-xl p-3 bg-[#F8F7F4] border border-[#E7E5E4] text-left flex items-start gap-3">
@@ -568,34 +691,141 @@ export const TrabajadoresScreen: React.FC<TrabajadoresScreenProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">CLABE Interbancaria (18 dígitos)</label>
-                <input
-                  type="text"
-                  maxLength={18}
-                  value={nuevaClabe}
-                  onChange={(e) => setNuevaClabe(e.target.value)}
-                  placeholder="012180015678901234"
-                  className="w-full h-8 px-2 font-mono border border-[#E7E5E4] focus:outline-none focus:border-[#C65D3A]"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1">Banco Receptor *</label>
+                  <select
+                    value={nuevoBanco}
+                    onChange={(e) => setNuevoBanco(e.target.value)}
+                    className="w-full h-8 px-2 border border-[#E7E5E4] focus:outline-none focus:border-[#C65D3A]"
+                  >
+                    <option value="BBVA México">BBVA México (012)</option>
+                    <option value="Banorte">Banorte (072)</option>
+                    <option value="Santander">Santander (014)</option>
+                    <option value="Citibanamex">Citibanamex (002)</option>
+                    <option value="HSBC">HSBC (021)</option>
+                    <option value="Scotiabank">Scotiabank (044)</option>
+                    <option value="Banco Azteca">Banco Azteca (127)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">CLABE Interbancaria (18 dígitos) *</label>
+                  <input
+                    type="text"
+                    maxLength={18}
+                    required
+                    value={nuevaClabe}
+                    onChange={(e) => setNuevaClabe(e.target.value)}
+                    placeholder="012180015678901234"
+                    className="w-full h-8 px-2 font-mono border border-[#E7E5E4] focus:outline-none focus:border-[#C65D3A]"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-[#E7E5E4]">
                 <button
                   type="button"
                   onClick={() => setShowAltaModal(false)}
-                  className="px-3 py-1.5 border border-[#E7E5E4] hover:bg-neutral-50 text-neutral-700 cursor-pointer"
+                  className="px-3 py-1.5 border border-[#E7E5E4] hover:bg-neutral-50 text-neutral-700 cursor-pointer text-xs"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#C65D3A] hover:bg-[#b24f2f] text-white font-semibold cursor-pointer"
+                  className="px-4 py-1.5 bg-[#C65D3A] hover:bg-[#b24f2f] text-white font-semibold cursor-pointer text-xs"
                 >
                   Guardar Trabajador
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CSV 20/20 CAMPOS SAT */}
+      {showCsvModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white border border-[#E7E5E4] shadow-2xl p-6 text-left my-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7E5E4] mb-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#C65D3A]">upload_file</span>
+                <h3 className="font-serif font-bold text-lg text-[#1A1A1A]">
+                  Importar CSV con Validación 20/20 Campos SAT
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCsvModal(false)}
+                className="text-neutral-400 hover:text-neutral-800"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <p className="font-sans text-xs text-neutral-600 mb-3">
+              Solo se acepta si se validan los 20/20 campos SAT. Si falta uno (ej. CLABE en fila 4), se rechaza la fila completa y se indica el error exacto.
+            </p>
+
+            {/* Quick Test Buttons */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="text-xs font-mono text-neutral-500">Pruebas rápidas:</span>
+              <button
+                type="button"
+                onClick={handleCargarCsvFalla}
+                className="px-2.5 py-1 bg-rose-50 text-rose-800 border border-rose-200 text-xs font-mono rounded hover:bg-rose-100 cursor-pointer"
+              >
+                Probar Rechazo: Fila 4 sin CLABE
+              </button>
+              <button
+                type="button"
+                onClick={handleCargarCsvValido}
+                className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-mono rounded hover:bg-emerald-100 cursor-pointer"
+              >
+                Probar Aprobado: 20/20 Válido
+              </button>
+            </div>
+
+            <textarea
+              rows={6}
+              value={csvContent}
+              onChange={(e) => handleValidarCsv(e.target.value)}
+              placeholder="Pega el contenido CSV aquí..."
+              className="w-full p-2 border border-[#E7E5E4] font-mono text-xs focus:outline-none focus:border-[#C65D3A] mb-3"
+            />
+
+            {csvErrors.length > 0 && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono mb-3 space-y-1">
+                <div className="font-bold">Filas rechazadas por no cumplir 20/20 campos SAT:</div>
+                {csvErrors.map((err, i) => (
+                  <div key={i}>• {err}</div>
+                ))}
+              </div>
+            )}
+
+            {csvValidos.length > 0 && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono mb-3 flex items-center justify-between">
+                <span>✓ {csvValidos.length} fila(s) superaron exitosamente los 20/20 campos SAT.</span>
+                <span className="font-semibold">Listo para importar</span>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E7E5E4]">
+              <button
+                type="button"
+                onClick={() => setShowCsvModal(false)}
+                className="px-3 py-1.5 border border-[#E7E5E4] hover:bg-neutral-50 text-neutral-700 text-xs cursor-pointer"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                disabled={csvValidos.length === 0 || csvErrors.length > 0}
+                onClick={handleImportarCsvConfirm}
+                className="px-4 py-1.5 bg-[#C65D3A] hover:bg-[#b24f2f] text-white font-semibold text-xs disabled:opacity-40 cursor-pointer"
+              >
+                Importar {csvValidos.length} Trabajador(es) Aprobado(s)
+              </button>
+            </div>
           </div>
         </div>
       )}

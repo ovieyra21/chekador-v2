@@ -19,6 +19,18 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@chekdor/motor": [
+        "./packages/motor/src/index.ts"
+      ],
+      "@chekdor/motor/*": [
+        "./packages/motor/src/*"
+      ],
+      "@chekdor/serializadores": [
+        "./packages/serializadores/src/index.ts"
+      ],
+      "@chekdor/serializadores/*": [
+        "./packages/serializadores/src/*"
       ]
     },
     "allowImportingTsExtensions": true,
